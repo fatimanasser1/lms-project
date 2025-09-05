@@ -1,0 +1,66 @@
+services:
+
+  # PostgreSQL Database
+  lms-db:
+    image: postgres:16
+    container_name: lms-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lmsdb
+    ports:
+      - "5432:5432"
+    networks:
+      - lms-network
+    volumes:
+      - lms-db-data:/var/lib/postgresql/data
+
+  # Keycloak Server
+  jolly_tu:
+    image: quay.io/keycloak/keycloak:26.3.3
+    container_name: jolly_tu
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
+    ports:
+      - "8443:8443"
+    networks:
+      - lms-network
+    volumes:
+      - ./lms-realm.json:/opt/keycloak/data/import/lms-realm.json
+    entrypoint: >
+      sh -c "
+      /opt/keycloak/bin/kc.sh start-dev
+      --import-realm
+      --import-realm-file /opt/keycloak/data/import/lms-realm.json
+      "
+
+  # LMS Spring Boot App
+  lms-app:
+    build: .
+    container_name: lms-app
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://lms-db:5432/lmsdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      KEYCLOAK_AUTH_SERVER_URL: http://jolly_tu:8080/
+      KEYCLOAK_REALM: lms-realm
+      KEYCLOAK_CLIENT_ID: lms-client
+      KEYCLOAK_CLIENT_SECRET: 94dUI4tm4w7ns5Vsud3rmAVmS3uCB95v
+    ports:
+      - "9099:9099"
+    networks:
+      - lms-network
+    depends_on:
+      - lms-db
+      - jolly_tu
+
+# External network (already created)
+networks:
+  lms-network:
+    external: true
+
+# Persist database data
+volumes:
+  lms-db-data:
